@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SAYEL — L'Architecture de Sécurité Ultime (Polish)</title>
+<style>
+:root{
+  --bg:#071028;
+  --glass-border: rgba(255,255,255,0.06);
+  --human-cyan:#00e5d4;
+  --ai-orange:#ff6b4a;
+  --neon-yellow:#ffb64d;
+  --muted:rgba(255,255,255,0.75);
+  --card-radius:12px;
+  --glass-blur:10px;
+  --glare: linear-gradient(135deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.02) 60%);
+  font-family: Inter, Roboto, system-ui, -apple-system, "Segoe UI", Arial;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:
+    radial-gradient(900px 400px at 6% 12%, rgba(108,99,255,0.04), transparent),
+    radial-gradient(800px 360px at 92% 88%, rgba(0,200,210,0.03), transparent),
+    var(--bg);
+  color:#eaf5ff; -webkit-font-smoothing:antialiased;
+  display:flex;align-items:center;justify-content:center;padding:24px;
+}
+
+/* layout */
+.container{width:1100px;max-width:100%;display:grid;grid-template-columns:1fr 420px;gap:20px;position:relative}
+.terminal{
+  position:absolute;left:18px;top:18px;font-family:monospace;font-size:13px;color:#9fe8ff;
+  background:rgba(0,0,0,0.08);padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.02);
+  backdrop-filter: blur(6px);z-index:60;width:360px;max-width:36vw;min-height:56px;white-space:pre-wrap;
+}
+.mercy-link{position:absolute;left:18px;top:110px;color:#ffd1d1;cursor:pointer;font-size:13px;text-decoration:underline;display:none;z-index:61}
+
+/* header & top score */
+.header{grid-column:1/3;display:flex;align-items:center;justify-content:space-between;padding:16px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid var(--glass-border);position:relative}
+.top-score{position:absolute;left:50%;transform:translateX(-50%);top:8px;display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.006), rgba(255,255,255,0.002));border:1px solid rgba(255,255,255,0.02);z-index:40;box-shadow:0 12px 40px rgba(0,0,0,0.6);font-weight:800;font-family:monospace}
+.score-label{font-size:12px;color:var(--muted)}
+.score-val{font-size:54px;min-width:28px;text-align:center;line-height:1;font-weight:900}
+.score-val.human{color:var(--human-cyan);text-shadow:0 8px 36px rgba(0,229,212,0.18)}
+.score-val.ai{color:var(--ai-orange);text-shadow:0 8px 36px rgba(255,107,74,0.14)}
+.score-sep{font-size:26px;color:rgba(255,255,255,0.7);transform:translateY(-3px)}
+
+/* game area */
+.game{padding:16px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid var(--glass-border);display:flex;gap:16px}
+.left{flex:1}
+.board{width:460px;height:460px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:12px;padding:16px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));border:1px solid rgba(255,255,255,0.02)}
+.tile{border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.04);backdrop-filter: blur(8px);display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;transition:transform .12s,box-shadow .12s,border-color .12s}
+.tile:hover{transform:translateY(-4px);box-shadow:0 12px 30px rgba(0,0,0,0.6)}
+.tile svg{width:92px;height:92px;display:block}
+.tile.neon-red{box-shadow:0 8px 28px rgba(255,107,74,0.25),0 0 40px rgba(255,107,74,0.45) !important;border-color:rgba(255,107,74,0.28) !important}
+.board.neon-tie{box-shadow:inset 0 0 140px rgba(255,182,77,0.12),0 0 60px rgba(255,182,77,0.08)}
+
+/* right panel & glass cards for tilt */
+.right{width:100%;display:flex;flex-direction:column;gap:12px}
+.glass-card{border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid var(--glass-border);backdrop-filter: blur(var(--glass-blur));transition:transform 0.18s ease, box-shadow 0.18s ease; transform-style:preserve-3d; will-change: transform;}
+.game-side{padding:12px}
+.glare{position:absolute;left:0;top:0;right:0;bottom:0;border-radius:inherit;pointer-events:none;background:transparent;mix-blend-mode:overlay;opacity:0.28}
+
+/* form & other UI */
+.status{padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));border:1px solid rgba(255,255,255,0.02)}
+.taunt{font-style:italic;color:rgba(200,215,230,0.95);min-height:48px}
+.card{padding:12px;border-radius:12px}
+.form-block{display:flex;flex-direction:column;gap:10px;position:relative}
+input[type="email"]{padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));color:#eaf5ff;outline:none}
+.btn{padding:10px 12px;border-radius:9px;border:none;background:linear-gradient(90deg,var(--human-cyan),var(--ai-orange));color:#021026;font-weight:700;cursor:pointer}
+.btn.secondary{background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.04)}
+.small{font-size:13px;color:rgba(190,200,210,0.9)}
+#confettiCanvas{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:90}
+#muteBtn{position:fixed;right:18px;bottom:18px;background:rgba(0,0,0,0.45);color:#fff;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);cursor:pointer;z-index:95}
+#shareBtn{margin-top:8px;padding:8px 10px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.06);cursor:pointer;color:var(--muted)}
+.toast{position:fixed;right:18px;bottom:82px;background:rgba(0,0,0,0.7);color:#fff;padding:8px 10px;border-radius:8px;z-index:98;display:none}
+
+/* shake */
+@keyframes shake{0%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(4px)}100%{transform:translateX(0)}}
+.shake{animation:shake 0.6s ease}
+.alert-border{box-shadow:0 0 0 3px rgba(255,80,80,0.18) inset;border-color:rgba(255,80,80,0.9) !important}
+
+@media(max-width:1100px){ .board{width:360px;height:360px} .top-score{position:static;transform:none;margin:0 auto} }
+</style>
+</head>
+<body>
+  <div id="terminal" class="terminal">&gt; MAIL WARDEN v5.0 Active.</div>
+  <div id="mercyLink" class="mercy-link">Ignorer le test (Je suis pressé)</div>
+
+  <canvas id="confettiCanvas"></canvas>
+  <button id="muteBtn">🔊 Mute</button>
+  <div id="toast" class="toast">Lien copié !</div>
+
+  <div class="container">
+    <header class="header">
+      <div class="brand"><div><div class="title">SAYEL SECURITY</div><div class="subtitle small">Enterprise Cyber Protection</div></div></div>
+
+      <div class="top-score" id="topScore">
+        <span class="score-label" id="topLeftLabel">HUMAIN</span>
+        <span id="topHuman" class="score-val human">0</span>
+        <span class="score-sep">-</span>
+        <span id="topAI" class="score-val ai">0</span>
+        <span class="score-label" id="topRightLabel">WARDEN MAIL</span>
+      </div>
+
+      <div class="headline"><h1 id="main-title">SAYEL : L'Architecture de Sécurité Ultime.</h1></div>
+
+      <nav class="lang-select" aria-label="Langues">
+        <button class="lang-btn active" data-lang="fr">🇫🇷</button>
+        <button class="lang-btn" data-lang="en">🇬🇧</button>
+        <button class="lang-btn" data-lang="es">🇪🇸</button>
+        <button class="lang-btn" data-lang="pt">🇵🇹</button>
+        <button class="lang-btn" data-lang="zh">🇨🇳</button>
+      </nav>
+    </header>
+
+    <section class="game">
+      <div class="left">
+        <div class="transition small">Notre système ne laisse aucune place à l'erreur. Pouvez-vous battre notre algorithme de démonstration ?</div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0">
+          <div class="small">Choisissez votre camp</div>
+          <div id="symbolToggle" style="display:flex;gap:8px">
+            <button class="btn secondary" data-symbol="X">X — Vous</button>
+            <button class="btn secondary" data-symbol="O">O — Vous</button>
+          </div>
+        </div>
+
+        <div id="board" class="board" role="grid" aria-label="Morpion Imbattable"></div>
+      </div>
+
+      <aside class="right">
+        <div class="glass-card game-side" id="scoreGlass" style="position:relative;padding:12px">
+          <div id="status" class="status">Prêt — cliquez pour jouer</div>
+          <div id="taunt" class="taunt">MAIL WARDEN: Standby.</div>
+          <div class="glare" id="scoreGlare"></div>
+          <div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:8px">
+            <span id="sideHuman" class="score-val human">0</span>
+            <span class="score-sep">‑</span>
+            <span id="sideAI" class="score-val ai">0</span>
+          </div>
+          <button id="shareBtn">🔗 Partager / Défier</button>
+        </div>
+
+        <div class="glass-card" id="formGlass" style="position:relative;padding:12px">
+          <div class="card">
+            <div style="font-weight:700">Liste d'attente — Demander un accès</div>
+            <div id="formBlock" class="form-block">
+              <input id="email" type="email" placeholder="⚠ EN ATTENTE D'AUTORISATION WARDEN..." disabled />
+              <div style="display:flex;gap:8px;margin-top:6px">
+                <button id="submitBtn" class="btn" disabled>Demander un accès</button>
+                <button id="resetBtn" class="btn secondary">Réinitialiser</button>
+              </div>
+            </div>
+            <div id="formMessage" class="small" aria-live="polite"></div>
+            <div id="contact" class="contact" style="margin-top:8px;display:none">
+              <div style="font-weight:700">Accès privilégié</div>
+              <div class="small">Victoire détectée — contact prioritaire activé.</div>
+              <div style="display:flex;gap:8px;margin-top:6px">
+                <a id="mailtoLink" class="btn" href="mailto:contact@sayel.security">Contacter l'équipe</a>
+                <button id="copyEmail" class="btn secondary">Copier email</button>
+              </div>
+              <div id="contactMsg" class="small"></div>
+            </div>
+          </div>
+          <div class="glare" id="formGlare"></div>
+        </div>
+
+      </aside>
+    </section>
+  </div>
+
+<script>
+/* -----------------------
+   Audio (Web Audio)
+   ----------------------- */
+let audioCtx=null;
+function ensureAudio(){ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }
+let isMuted=false;
+document.getElementById('muteBtn').addEventListener('click', ()=>{
+  isMuted = !isMuted;
+  document.getElementById('muteBtn').textContent = isMuted ? '🔇 Muted' : '🔊 Mute';
+  if (!isMuted && audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+});
+function playOsc({type='sine',freq=440,duration=0.12,gain=0.12,attack=0.005}){
+  if (isMuted) return;
+  ensureAudio();
+  const now=audioCtx.currentTime;
+  const o=audioCtx.createOscillator();
+  const g=audioCtx.createGain();
+  o.type=type; o.frequency.setValueAtTime(freq, now);
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.linearRampToValueAtTime(gain, now+attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, now+duration);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(now); o.stop(now+duration+0.02);
+}
+function playSound(kind){
+  if (isMuted) return;
+  ensureAudio();
+  switch(kind){
+    case 'hover': playOsc({type:'sine',freq:1200,duration:0.05,gain:0.06}); break;
+    case 'move': playOsc({type:'triangle',freq:160,duration:0.12,gain:0.14}); break;
+    case 'error': playOsc({type:'square',freq:100,duration:0.22,gain:0.16}); break;
+    case 'unlock': playOsc({type:'sine',freq:880,duration:0.2,gain:0.07}); setTimeout(()=>playOsc({type:'sine',freq:1100,duration:0.2,gain:0.06}),80); break;
+  }
+}
+
+/* -----------------------
+   Confetti (Canvas)
+   ----------------------- */
+const confettiCanvas=document.getElementById('confettiCanvas');
+const confettiCtx=confettiCanvas.getContext('2d');
+function resizeCanvas(){ confettiCanvas.width=window.innerWidth; confettiCanvas.height=window.innerHeight; }
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+let confettiParticles=[], confettiAnimId=null;
+function spawnConfetti(count=80){
+  confettiParticles=[];
+  const colors=['#00e5d4','#7c63ff','#b18cff','#00c8d2'];
+  for(let i=0;i<count;i++){
+    confettiParticles.push({
+      x: Math.random()*confettiCanvas.width,
+      y: -Math.random()*confettiCanvas.height*0.4,
+      w: 6+Math.random()*8, h:6+Math.random()*8,
+      vx:-40+Math.random()*80, vy:60+Math.random()*200,
+      rot:Math.random()*360, vr:-200+Math.random()*400,
+      color: colors[Math.floor(Math.random()*colors.length)],
+      ttl: 2000+Math.random()*2000
+    });
+  }
+  if (confettiAnimId) cancelAnimationFrame(confettiAnimId);
+  function loop(now){
+    const dt = now - (loop._last||now); loop._last = now;
+    confettiCtx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+    confettiParticles.forEach(p=>{
+      p.x += p.vx*(dt/1000); p.y += p.vy*(dt/1000); p.rot += p.vr*(dt/1000); p.ttl-=dt;
+      confettiCtx.save();
+      confettiCtx.translate(p.x,p.y); confettiCtx.rotate(p.rot*Math.PI/180);
+      confettiCtx.fillStyle = p.color; confettiCtx.fillRect(-p.w/2,-p.h/2,p.w,p.h); confettiCtx.restore();
+    });
+    confettiParticles = confettiParticles.filter(p => p.ttl>0 && p.y < confettiCanvas.height+100);
+    if (confettiParticles.length) confettiAnimId = requestAnimationFrame(loop); else { confettiCtx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height); confettiAnimId=null; }
+  }
+  confettiAnimId = requestAnimationFrame(loop);
+}
+
+/* -----------------------
+   Typewriter (terminal)
+   ----------------------- */
+const terminalEl = document.getElementById('terminal');
+function typeWriter(text, speed=30){
+  return new Promise(resolve=>{
+    let i=0;
+    function step(){
+      if(i<text.length){ terminalEl.textContent += text[i++]; setTimeout(step,speed); }
+      else { terminalEl.textContent += '\n'; resolve(); }
+    }
+    step();
+  });
+}
+
+/* -----------------------
+   Game logic (robust)
+   ----------------------- */
+let lang='fr';
+const PROFILE_MESSAGES = {
+  fr: ['ANALYSE: Style de jeu agressif. Risque élevé.','ANALYSE: Hésitant. Émotions détectées.','ANALYSE: Calculé. Niveau de menace : Modéré.'],
+  en: ['ANALYSIS: Playstyle aggressive. High risk.','ANALYSIS: Hesitant. Human emotions detected.','ANALYSIS: Calculated. Threat level: Moderate.'],
+  es: ['ANÁLISIS: Estilo agresivo. Alto riesgo.','ANÁLISIS: Vacilante. Emociones humanas detectadas.','ANÁLISIS: Calculado. Nivel de amenaza: Moderado.'],
+  pt: ['ANÁLISE: Estilo agressivo. Alto risco.','ANÁLISE: Hesitante. Emoções humanas detectadas.','ANÁLISE: Calculado. Nível de ameaça: Moderado.'],
+  zh: ['分析：风格激进。高风险。','分析：犹豫。检测到人类情绪。','分析：计算得当。威胁等级：中等。']
+};
+
+let humanSymbol=null, aiSymbol=null;
+let board = Array(9).fill(null);
+let stats = {games:0,ties:0,wins:0,losses:0,pointsHuman:0,pointsAI:0};
+let consecutiveLosses=0, mercyShown=false, isFormUnlocked=false;
+let gameLocked=false; // prevents clicks during visual
+let moveTimestamps=[];
+
+// UI refs
+const boardElRef = document.getElementById('board');
+const topHuman = document.getElementById('topHuman');
+const topAI = document.getElementById('topAI');
+const sideHuman = document.getElementById('sideHuman');
+const sideAI = document.getElementById('sideAI');
+const submitBtn = document.getElementById('submitBtn');
+const emailInput = document.getElementById('email');
+const formBlock = document.getElementById('formBlock');
+const mercyLink = document.getElementById('mercyLink');
+const toast = document.getElementById('toast');
+const shareBtn = document.getElementById('shareBtn');
+
+const AI_TERMINAL_LINE = '> MAIL WARDEN v5.0 Active.';
+
+function LANG_TEXT(key){
+  const map = {
+    system: {fr:'> SYSTÈME : Vous jouez les {human}. MAIL WARDEN joue les {ai}.', en: '> SYSTEM: You are playing {human}. MAIL WARDEN is {ai}.', es: '> SISTEMA: Juegas con {human}. MAIL WARDEN juega con {ai}.', pt: '> SISTEMA: Você joga com {human}. MAIL WARDEN joga com {ai}.', zh: '> 系统：你持 {human}。MAIL WARDEN 持 {ai}。'},
+    accessDenied: {fr:'> ALERT: Input access denied. Win to unlock.', en:'> ALERT: Input access denied. Win to unlock.', es:'> ALERT: Input access denied. Win to unlock.', pt:'> ALERT: Input access denied. Win to unlock.', zh:'> ALERT: Input access denied. Win to unlock.'},
+    tieMsg: {fr:'Menace neutralisée. Vous êtes à la hauteur.', en:'Threat neutralized.', es:'Amenaza neutralizada.', pt:'Ameaça neutralizada.', zh:'威胁已中和。'},
+    aiVictory: {fr:'MAIL WARDEN : Faille détectée. Accès refusé.', en:'MAIL WARDEN: Breach detected. Access denied.', es:'MAIL WARDEN: Brecha detectada. Acceso denegado.', pt:'MAIL WARDEN: Brecha detectada. Acesso negado.', zh:'MAIL WARDEN：检测到漏洞。拒绝访问。'},
+    playerWin: {fr:'Vous avez trouvé une faille ?', en:'You found a breach?', es:'¿Has encontrado una brecha?', pt:'Você encontrou uma brecha?', zh:'你发现了一个漏洞？'},
+    adminOverride: {fr:'> ADMIN OVERRIDE: Manual Access Granted.', en:'> ADMIN OVERRIDE: Manual Access Granted.', es:'> ADMIN OVERRIDE: Manual Access Granted.', pt:'> ADMIN OVERRIDE: Manual Access Granted.', zh:'> ADMIN OVERRIDE: Manual Access Granted.'}
+  };
+  return (map[key] && map[key][lang]) || (map['system'][lang]);
+}
+
+function initSymbols(){
+  humanSymbol = Math.random() < 0.5 ? 'X' : 'O';
+  aiSymbol = humanSymbol === 'X' ? 'O' : 'X';
+  terminalEl.textContent = '';
+  typeWriter(AI_TERMINAL_LINE,6).then(()=> typeWriter(LANG_TEXT('system').replace('{human}',humanSymbol).replace('{ai}',aiSymbol),24));
+  console.log('init',humanSymbol,aiSymbol);
+}
+
+function renderBoard(){
+  boardElRef.innerHTML='';
+  for(let i=0;i<9;i++){
+    const v = board[i];
+    const tile = document.createElement('div');
+    tile.className='tile';
+    tile.dataset.i = i;
+    tile.tabIndex = 0;
+    if (v==='X') tile.innerHTML = `<svg class="symbol x" viewBox="0 0 100 100"><line x1="18" y1="18" x2="82" y2="82" stroke="${colorFor('X')}" stroke-width="11" stroke-linecap="round"/><line x1="82" y1="18" x2="18" y2="82" stroke="${colorFor('X')}" stroke-width="11" stroke-linecap="round"/></svg>`;
+    else if (v==='O') tile.innerHTML = `<svg class="symbol o" viewBox="0 0 100 100"><circle cx="50" cy="50" r="30" stroke="${colorFor('O')}" stroke-width="9" fill="none" stroke-linecap="round"/></svg>`;
+    tile.addEventListener('mouseenter', ()=> playSound('hover'));
+    tile.addEventListener('click', onCellClick);
+    tile.addEventListener('keydown', e=> { if (e.key==='Enter' || e.key===' ') onCellClick(e); });
+    boardElRef.appendChild(tile);
+  }
+}
+
+function colorFor(sym){
+  if (sym===humanSymbol) return getComputedStyle(document.documentElement).getPropertyValue('--human-cyan').trim();
+  if (sym===aiSymbol) return getComputedStyle(document.documentElement).getPropertyValue('--ai-orange').trim();
+  return '#fff';
+}
+
+function onCellClick(e){
+  if (gameLocked) return;
+  const idx = Number(e.currentTarget.dataset.i);
+  if (!Number.isFinite(idx)) return;
+  if (board[idx]) return;
+  if (!humanSymbol || !aiSymbol) initSymbols();
+
+  moveTimestamps.push(performance.now());
+
+  board[idx] = humanSymbol;
+  playSound('move'); renderBoard();
+
+  const r = checkWin(board);
+  if (r){ endRound(r); return; }
+
+  setTimeout(()=> {
+    if (gameLocked) return;
+    if (board.every(Boolean)){ endRound('tie'); return; }
+    makeAIMove();
+    renderBoard();
+    const r2 = checkWin(board);
+    if (r2) endRound(r2);
+  }, 300 + Math.random()*180);
+}
+
+function makeAIMove(){
+  if (!aiSymbol || aiSymbol===humanSymbol) aiSymbol = humanSymbol==='X'?'O':'X';
+  const best = minimax(board.slice(), aiSymbol, -Infinity, +Infinity);
+  if (best && typeof best.index==='number') board[best.index] = aiSymbol;
+  else {
+    const empties = board.map((v,i)=> v? null : i).filter(x=> x!==null);
+    if (empties.length) board[empties[0]] = aiSymbol;
+  }
+}
+
+function minimax(bd, player, alpha, beta){
+  const winner = checkWin(bd);
+  if (winner === aiSymbol) return {score: +10};
+  if (winner === humanSymbol) return {score: -10};
+  if (winner === 'tie') return {score:0};
+  const avail = bd.map((v,i)=> v? null : i).filter(x=> x!==null);
+  if (player === aiSymbol){
+    let best = {score:-Infinity,index:null};
+    const order = orderMoves(avail);
+    for (const i of order){
+      bd[i]=player;
+      const res = minimax(bd, humanSymbol, alpha, beta);
+      bd[i]=null;
+      if (res.score>best.score) best={score:res.score,index:i};
+      alpha=Math.max(alpha,res.score); if (beta<=alpha) break;
+    }
+    return best;
+  } else {
+    let best = {score:+Infinity,index:null};
+    const order = orderMoves(avail);
+    for (const i of order){
+      bd[i]=player;
+      const res = minimax(bd, aiSymbol, alpha, beta);
+      bd[i]=null;
+      if (res.score<best.score) best={score:res.score,index:i};
+      beta=Math.min(beta,res.score); if (beta<=alpha) break;
+    }
+    return best;
+  }
+}
+function orderMoves(avail){ const center=4,corners=[0,2,6,8],edges=[1,3,5,7]; const out=[]; if(avail.includes(center)) out.push(center); corners.forEach(c=>avail.includes(c)&&out.push(c)); edges.forEach(e=>avail.includes(e)&&out.push(e)); avail.forEach(a=>!out.includes(a)&&out.push(a)); return out; }
+const winLines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+function checkWin(bd){ for (const [a,b,c] of winLines) if (bd[a] && bd[a]===bd[b] && bd[a]===bd[c]) return bd[a]; if (bd.every(Boolean)) return 'tie'; return null; }
+
+function endRound(result){
+  gameLocked = true;
+  clearTimeout(window._visualTimer);
+
+  if (result === aiSymbol){
+    const line = winLines.find(([a,b,c])=> board[a]===result && board[b]===result && board[c]===result);
+    if (line) line.forEach(i=> boardElRef.children[i].classList.add('neon-red'));
+    consecutiveLosses++;
+    playSound('error');
+  } else if (result === 'tie'){
+    boardElRef.classList.add('neon-tie');
+    consecutiveLosses=0;
+    if (!isFormUnlocked) { isFormUnlocked = true; unlockForm(); }
+  } else {
+    const line = winLines.find(([a,b,c])=> board[a]===result && board[b]===result && board[c]===result);
+    if (line) line.forEach(i=> boardElRef.children[i].style.boxShadow = '0 8px 26px rgba(0,229,212,0.16),0 0 28px rgba(0,229,212,0.12)');
+    consecutiveLosses=0;
+    playSound('move');
+  }
+
+  if (result === 'tie'){ stats.ties++; stats.pointsHuman++; stats.pointsAI++; typeWriter(LANG_TEXT('tieMsg'),18); }
+  else if (result === humanSymbol){ stats.wins++; stats.pointsHuman+=2; typeWriter(LANG_TEXT('playerWin'),18); }
+  else { stats.losses++; stats.pointsAI+=2; typeWriter(LANG_TEXT('aiVictory'),18); }
+
+  updateScoreUI();
+  updateAccessUI();
+
+  const analysis = generateProfile();
+  typeWriter(analysis,18);
+
+  if (!mercyShown && consecutiveLosses >= 3){
+    mercyShown = true;
+    mercyLink.style.display = 'block';
+    mercyLink.onclick = ()=> { typeWriter(LANG_TEXT('adminOverride') || '> ADMIN OVERRIDE: Manual Access Granted.',18); unlockForm(true); mercyLink.style.display='none'; };
+  }
+
+  if (isFormUnlocked) spawnConfetti(80);
+
+  window._visualTimer = setTimeout(()=> {
+    boardElRef.classList.remove('neon-tie');
+    for (let i=0;i<boardElRef.children.length;i++){ boardElRef.children[i].classList.remove('neon-red'); boardElRef.children[i].style.boxShadow=''; boardElRef.children[i].style.borderColor=''; }
+    board = Array(9).fill(null);
+    gameLocked = false;
+    renderBoard();
+  }, 800);
+}
+
+function generateProfile(){
+  if (moveTimestamps.length < 2) return LANG_TEXT('system').replace('{human}', humanSymbol).replace('{ai}', aiSymbol);
+  const diffs = []; for (let i=1;i<moveTimestamps.length;i++) diffs.push(moveTimestamps[i]-moveTimestamps[i-1]);
+  const avg = diffs.reduce((a,b)=>a+b,0)/diffs.length;
+  const rnd = Math.random();
+  let msg;
+  if (avg < 400 || rnd < 0.25) msg = PROFILE_MESSAGES[lang][0];
+  else if (avg > 1000 || rnd > 0.75) msg = PROFILE_MESSAGES[lang][1];
+  else msg = PROFILE_MESSAGES[lang][2];
+  return msg;
+}
+
+function unlockForm(manual=false){
+  if (isFormUnlocked) return;
+  isFormUnlocked = true;
+  document.getElementById('email').disabled = false;
+  document.getElementById('submitBtn').disabled = false;
+  playSound('unlock');
+  spawnConfetti(100);
+  if (manual) typeWriter(LANG_TEXT('adminOverride') || '> ADMIN OVERRIDE: Manual Access Granted.',18);
+  else typeWriter('> ACCESS: Formulaire débloqué.',18);
+}
+
+function updateScoreUI(){ topHuman.textContent = String(stats.pointsHuman); topAI.textContent = String(stats.pointsAI); sideHuman.textContent = String(stats.pointsHuman); sideAI.textContent = String(stats.pointsAI); }
+function updateAccessUI(){ const unlocked = isFormUnlocked || stats.ties>=1; document.getElementById('submitBtn').disabled = !unlocked; document.getElementById('email').disabled = !unlocked; document.getElementById('email').placeholder = unlocked ? 'Email de contact' : '⚠ EN ATTENTE D\'AUTORISATION WARDEN...'; if (stats.wins>=1) document.getElementById('contact').style.display = 'block'; }
+
+/* UI & interactions */
+document.getElementById('email').addEventListener('click', ()=> { if (document.getElementById('email').disabled) { triggerFormError(); playSound('error'); }});
+document.getElementById('submitBtn').addEventListener('click', ()=> {
+  if (document.getElementById('submitBtn').disabled){ triggerFormError(); return; }
+  const email = document.getElementById('email').value.trim();
+  if (!/^\S+@\S+\.\S+$/.test(email)){ document.getElementById('formMessage').textContent='Email invalide'; playSound('error'); return; }
+  document.getElementById('formMessage').textContent='Vous êtes inscrit sur la liste prioritaire.'; playSound('unlock');
+});
+function triggerFormError(){
+  formBlock.classList.remove('shake','alert-border');
+  void formBlock.offsetWidth;
+  formBlock.classList.add('shake','alert-border');
+  typeWriter(LANG_TEXT('accessDenied') || '> ALERT: Input access denied. Win to unlock.',18);
+  setTimeout(()=> formBlock.classList.remove('shake'),600);
+  setTimeout(()=> formBlock.classList.remove('alert-border'),1200);
+}
+
+document.getElementById('copyEmail').addEventListener('click', ()=>{
+  const mail='contact@sayel.security';
+  navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(mail).then(()=> showToast('Email copié !')) : showToast('Copie non disponible');
+});
+
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  stats = {games:0,ties:0,wins:0,losses:0,pointsHuman:0,pointsAI:0};
+  consecutiveLosses=0; mercyShown=false; isFormUnlocked=false; moveTimestamps=[];
+  document.getElementById('email').value=''; document.getElementById('formMessage').textContent='';
+  document.getElementById('contact').style.display='none';
+  document.getElementById('submitBtn').disabled=true; document.getElementById('email').disabled=true;
+  document.getElementById('mercyLink').style.display='none';
+  renderBoard(); updateScoreUI(); updateAccessUI();
+  initSymbols(); board = Array(9).fill(null); renderBoard();
+});
+
+shareBtn.addEventListener('click', ()=>{
+  const url = location.href;
+  const text = `L'IA Mail Warden m'a bloqué. Penses-tu être assez intelligent pour déverrouiller l'accès ? ${url}`;
+  navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(text).then(()=> showToast('Lien copié !')) : showToast('Impossible de copier');
+});
+function showToast(msg){ toast.textContent = msg; toast.style.display='block'; setTimeout(()=> toast.style.display='none',1400); }
+
+/* Tilt / Parallax */
+const glassEls = document.querySelectorAll('.glass-card, .game-side');
+let mouseX=0, mouseY=0, raf=false;
+document.addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; if (!raf){ raf=true; requestAnimationFrame(updateTilt); }});
+function updateTilt(){
+  raf=false;
+  glassEls.forEach(el => {
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top + rect.height/2;
+    const dx = (mouseX - cx) / rect.width;
+    const dy = (mouseY - cy) / rect.height;
+    const rotateY = dx * 6;
+    const rotateX = -dy * 6;
+    el.style.transform = `perspective(900px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(6px)`;
+    const glare = el.querySelector('.glare');
+    if (glare){
+      const px = (dx+0.5)*100;
+      const py = (dy+0.5)*100;
+      glare.style.background = `radial-gradient(circle at ${px}% ${py}%, rgba(255,255,255,0.18), rgba(255,255,255,0.02) 25%, transparent 60%)`;
+    }
+  });
+}
+
+/* helpers */
+function init(){
+  initSymbols();
+  board = Array(9).fill(null);
+  renderBoard();
+  updateScoreUI();
+  updateAccessUI();
+  document.body.addEventListener('click', ()=> ensureAudio(), {once:true});
+  const rect = document.getElementById('terminal').getBoundingClientRect();
+  mercyLink.style.left = `${rect.left}px`;
+  mercyLink.style.top = `${rect.bottom + 6}px`;
+  window.addEventListener('resize', ()=> {
+    const r = document.getElementById('terminal').getBoundingClientRect();
+    mercyLink.style.left = `${r.left}px`;
+    mercyLink.style.top = `${r.bottom + 6}px`;
+  });
+}
+window.addEventListener('DOMContentLoaded', init);
+
+/* expose debug */
+window._SAYEL = { stats, initSymbols, renderBoard };
+</script>
+</body>
+</html>
